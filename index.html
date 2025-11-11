@@ -128,15 +128,75 @@ async function updateAllName(){
     const post = docu.data();
     if(post.comments){
       const updatedComments = post.comments.map(c=>{
-        if(c.userId===userId) return {...c, userName: username};
-        return c;
-      });
-      await updateDoc(doc(db,'posts',docu.id), {comments: updatedComments});
-    }
+<script type="module">
+// ------------------- Firebase SDK -------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, arrayUnion, query, where, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-firestore.js";
+
+// ------------------- Cloudinary -------------------
+const cloudName = "dnlqnfkol";
+const uploadPreset = "QQalbum";
+
+async function uploadToCloudinary(file){
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, { method: "POST", body: formData });
+  const data = await res.json();
+  if(!data.secure_url) throw new Error("Upload failed");
+  return data.secure_url;
+}
+
+// ------------------- Firebase -------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyAPL2a6EcoSdNwKjftD2B6xsOpCbaCb0Uk",
+  authDomain: "album-4434b.firebaseapp.com",
+  projectId: "album-4434b",
+  storageBucket: "album-4434b.appspot.com",
+  messagingSenderId: "462394309967",
+  appId: "1:462394309967:web:528d039b28ff79776f593a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ------------------- User -------------------
+let userId = localStorage.getItem('userId') || ('user-'+Date.now()+'-'+Math.floor(Math.random()*10000));
+localStorage.setItem('userId', userId);
+
+let username = localStorage.getItem('username');
+const namePopup = document.getElementById('namePopup');
+const nameInput = document.getElementById('nameInput');
+
+function showNamePopup(){ namePopup.style.display='flex'; }
+function hideNamePopup(){ namePopup.style.display='none'; }
+
+function saveUserName(){
+  const val = nameInput.value.trim();
+  if(!val) return alert("ใส่ชื่อด้วย");
+  username = val;
+  localStorage.setItem('username', val);
+  hideNamePopup();
+  updateAllName();
+}
+
+if(!username) showNamePopup();
+document.getElementById('saveNameBtn').addEventListener('click', saveUserName);
+document.getElementById('changeNameBtn').addEventListener('click', ()=>{
+  nameInput.value = username;
+  showNamePopup();
+});
+
+// ------------------- Update name -------------------
+async function updateAllName(){
+  const q = query(collection(db,'posts'), where('userId','==',userId));
+  const snapshot = await getDocs(q);
+  for(const docu of snapshot.docs){
+    await updateDoc(doc(db,'posts',docu.id), {userName: username});
   }
 }
 
-// ------------------- UPLOAD -------------------
+// ------------------- Upload -------------------
 const uploadBtn = document.getElementById('uploadBtn');
 const photoInput = document.getElementById('photoInput');
 const captionInput = document.getElementById('captionInput');
@@ -151,7 +211,7 @@ uploadBtn.addEventListener('click', async ()=>{
   for(const file of files){
     try{
       const url = await uploadToCloudinary(file);
-      await addDoc(collection(db,'posts'),{
+      await addDoc(collection(db,'posts'), {
         photo: url,
         caption,
         userId,
@@ -168,7 +228,7 @@ uploadBtn.addEventListener('click', async ()=>{
   photoInput.value=''; captionInput.value='';
 });
 
-// ------------------- RENDER -------------------
+// ------------------- Render -------------------
 function renderPosts(posts){
   albumContainer.innerHTML='';
   posts.sort((a,b)=>b.timestamp-a.timestamp).forEach(post=>{
@@ -189,7 +249,7 @@ function renderPosts(posts){
   });
 }
 
-// ------------------- COMMENT -------------------
+// ------------------- Comment -------------------
 window.addComment = async function(postId){
   const input = document.getElementById('commentInput-'+postId);
   const text = input.value.trim();
@@ -199,7 +259,7 @@ window.addComment = async function(postId){
   input.value='';
 }
 
-// ------------------- FETCH & DELETE >48h -------------------
+// ------------------- Fetch & delete >48h -------------------
 async function fetchPosts(){
   const now = Date.now();
   const fortyEightHours = 48*60*60*1000;
