@@ -58,10 +58,9 @@ main{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:
 // ------------------- Firebase SDK -------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, updateDoc, arrayUnion, query, where, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-firestore.js";
-
 // ------------------- Cloudinary Config -------------------
 const cloudName = "dnlqnfkol"; // เปลี่ยนเป็นของคุณ
-const uploadPreset = "Album.."; // Preset Unsigned ที่สร้าง
+const uploadPreset = "QQalbum"; // Preset Unsigned ที่สร้าง
 
 async function uploadToCloudinary(file){
   const url = `https://api.cloudinary.com/v1_1/${cloudName}/upload`;
