@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudinary Album Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;background:#f0f2f5;margin:0;padding:0;}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-bottom-left-radius:12px;border-bottom-right-radius:12px;}
+header h1{font-size:1.6rem;}
+button{padding:8px 16px;border:none;border-radius:8px;background:#fff;color:#667eea;font-weight:600;transition:0.3s;}
+button:hover{background:#f0f0f0;cursor:pointer;}
+#uploadSection{display:flex;flex-wrap:wrap;gap:10px;padding:15px;justify-content:center;}
+#uploadSection input[type="file"],#uploadSection input[type="text"]{padding:10px;border-radius:8px;border:1px solid #ccc;flex:1;}
+#uploadSection button{background:#667eea;color:#fff;}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:15px;padding:15px;}
+.card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.15);transition:0.3s;}
+.card:hover{transform:translateY(-5px);box-shadow:0 14px 28px rgba(0,0,0,0.25);}
+.card img{width:100%;height:220px;object-fit:cover;}
+.card .info{padding:12px;}
+.card .name{font-weight:700;color:#667eea;}
+.card .time{font-size:0.75rem;color:#888;margin-bottom:6px;}
+.card input[type="text"]{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #ccc;}
+.card button.commentBtn{margin-top:6px;background:#667eea;color:#fff;padding:6px 12px;border-radius:6px;font-weight:600;}
+.popup-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);display:none;justify-content:center;align-items:center;z-index:999;}
+.popup{background:#fff;padding:25px;border-radius:16px;width:320px;text-align:center;}
+.popup input{width:100%;padding:10px;margin:15px 0;border-radius:8px;border:1px solid #ccc;}
+.popup button{background:#667eea;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;}
+@media(max-width:600px){main{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cloudinary Album Pro</h1>
+  <button id="changeNameBtn">เปลี่ยนชื่อ</button>
+</header>
+
+<div id="uploadSection">
+  <input type="file" id="photoInput" multiple>
+  <input type="text" id="captionInput" placeholder="เขียนแคปชั่น...">
+  <button id="uploadBtn">อัปโหลด</button>
+</div>
+
+<main id="albumContainer"></main>
+
+<!-- POPUP ตั้งชื่อ -->
+<div class="popup-bg" id="namePopup">
+  <div class="popup">
+    <h3>ตั้งชื่อของคุณ</h3>
+    <input type="text" id="nameInput" placeholder="ใส่ชื่อของคุณ">
+    <button id="saveNameBtn">บันทึก</button>
+  </div>
+</div>
+
+<script type="module">
+// ------------------- Firebase SDK -------------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, arrayUnion, query, where, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-firestore.js";
+
+// ------------------- Cloudinary Config -------------------
+const cloudName = "dnlqnfkol"; // เปลี่ยนเป็นของคุณ
+const uploadPreset = "Album.."; // Preset Unsigned ที่สร้าง
+
+async function uploadToCloudinary(file){
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/upload`;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  const res = await fetch(url,{method:"POST",body:formData});
+  const data = await res.json();
+  return data.secure_url;
+}
+
+// ------------------- Firebase Init -------------------
+// Analytics ถ้าไม่ใช้บนมือถือ ก็ลบทิ้ง
+// import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.6.1/firebase-analytics.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyAPL2a6EcoSdNwKjftD2B6xsOpCbaCb0Uk",
+  authDomain: "album-4434b.firebaseapp.com",
+  projectId: "album-4434b",
+  storageBucket: "album-4434b.firebasestorage.app",
+  messagingSenderId: "462394309967",
+  appId: "1:462394309967:web:528d039b28ff79776f593a",
+  measurementId: "G-LT8ZWXGPC1"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+// ------------------- USER -------------------
+let userId = localStorage.getItem('userId');
+let username = localStorage.getItem('username');
+if(!userId){
+  userId = 'user-'+Date.now()+'-'+Math.floor(Math.random()*10000);
+  localStorage.setItem('userId',userId);
+}
+
+const namePopup = document.getElementById('namePopup');
+const nameInput = document.getElementById('nameInput');
+function showNamePopup(){ namePopup.style.display='flex'; }
+function hideNamePopup(){ namePopup.style.display='none'; }
+
+function saveUserName(){
+  const val = nameInput.value.trim();
+  if(!val) return;
+  username = val;
+  localStorage.setItem('username',val);
+  hideNamePopup();
+  updateAllName();
+}
+
+if(!username) showNamePopup();
+document.getElementById('saveNameBtn').addEventListener('click',saveUserName);
+document.getElementById('changeNameBtn').addEventListener('click',()=>{nameInput.value=username; showNamePopup();});
+
+// ------------------- UPDATE NAME EVERYWHERE -------------------
+async function updateAllName(){
+  const q = query(collection(db,'posts'),where('userId','==',userId));
+  const snapshot = await getDocs(q);
+  for(const docu of snapshot.docs){
+    await updateDoc(doc(db,'posts',docu.id),{userName:username});
+  }
+  const allPosts = await getDocs(collection(db,'posts'));
+  for(const docu of allPosts.docs){
+    const post = docu.data();
+    const updatedComments = post.comments.map(c=>{
+      if(c.userId===userId) return {...c,userName:username};
+      return c;
+    });
+    await updateDoc(doc(db,'posts',docu.id),{comments:updatedComments});
+  }
+}
+
+// ------------------- UPLOAD -------------------
+const uploadBtn = document.getElementById('uploadBtn');
+const photoInput = document.getElementById('photoInput');
+const captionInput = document.getElementById('captionInput');
+const albumContainer = document.getElementById('albumContainer');
+
+uploadBtn.addEventListener('click', async()=>{
+  const files = photoInput.files;
+  const caption = captionInput.value.trim();
+  if(!files.length) return alert('เลือกไฟล์ก่อน');
+
+  for(const file of files){
+    const url = await uploadToCloudinary(file); // upload ไป Cloudinary
+    await addDoc(collection(db,'posts'),{
+      photo:url,
+      caption,
+      userId,
+      userName:username,
+      comments:[],
+      timestamp:Date.now(),
+      time:new Date().toLocaleString()
+    });
+  }
+
+  photoInput.value=''; captionInput.value='';
+});
+
+// ------------------- RENDER -------------------
+function renderPosts(posts){
+  albumContainer.innerHTML='';
+  posts.sort((a,b)=>b.timestamp-a.timestamp).forEach(post=>{
+    const card = document.createElement('div');
+    card.className='card';
+    card.innerHTML=`
+      <img src="${post.photo}">
+      <div class="info">
+        <div class="name">${post.userName}</div>
+        <div class="time">${post.time}</div>
+        <div class="caption">${post.caption}</div>
+        <div class="comments">${post.comments.map(c=>c.userName+': '+c.text).join('<br>')}</div>
+        <input type="text" placeholder="Comment..." id="commentInput-${post.id}">
+        <button class="commentBtn" onclick="addComment('${post.id}')">โพสต์คอมเมนต์</button>
+      </div>
+    `;
+    albumContainer.appendChild(card);
+  });
+}
+
+// ------------------- COMMENT -------------------
+window.addComment = async function(postId){
+  const input = document.getElementById('commentInput-'+postId);
+  const text = input.value.trim();
+  if(!text) return;
+  const postRef = doc(db,'posts',postId);
+  await updateDoc(postRef,{comments:arrayUnion({userId,userName:username,text})});
+  input.value='';
+}
+
+// ------------------- FETCH & DELETE >48h -------------------
+async function fetchPosts(){
+  const now = Date.now();
+  const fortyEightHours = 48*60*60*1000;
+  onSnapshot(collection(db,'posts'), async(snapshot)=>{
+    const posts=[];
+    for(const docu of snapshot.docs){
+      const data = docu.data();
+      data.id = docu.id;
+      if(now - data.timestamp > fortyEightHours){
+        await deleteDoc(doc(db,'posts',docu.id));
+        continue;
+      }
+      posts.push(data);
+    }
+    renderPosts(posts);
+  });
+}
+
+fetchPosts();
+
+</script>
+</body>
+</html>
